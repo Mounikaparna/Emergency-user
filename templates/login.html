@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergency Alert System - Account</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #f6f9fc 0%, #eef2f5 100%);
+        }
+        
+        .form-container {
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: height 0.5s ease;
+        }
+        
+        .form-panel {
+            width: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 1;
+            visibility: visible;
+            transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            transform: translateX(0);
+        }
+        
+        .form-panel.inactive {
+            opacity: 0;
+            visibility: hidden;
+        }
+        
+        .form-panel.panel-login.inactive {
+            transform: translateX(-100%);
+        }
+        
+        .form-panel.panel-register.inactive {
+            transform: translateX(100%);
+        }
+        
+        .input-group {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        
+        .input-group input, .input-group select {
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .input-group input:focus, .input-group select:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        
+        .input-icon {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            left: 0.75rem;
+            color: #9ca3af;
+        }
+        
+        .input-with-icon {
+            padding-left: 2.5rem;
+        }
+        
+        /* Switch cards */
+        .switch-card {
+            padding: 15px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.4s ease;
+            margin-top: 1.5rem;
+        }
+        
+        .switch-card p {
+            margin-right: 15px;
+            font-weight: 500;
+        }
+        
+        .switch-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .switch-btn i {
+            margin-right: 6px;
+        }
+        
+        /* Help with dropdown arrow on select */
+        select.input-with-icon {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1em;
+        }
+        
+        /* Loader overlay */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            display: none;
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <!-- Loader Overlay -->
+    <div id="loader">
+        <i class="fas fa-spinner fa-spin mr-2"></i>Logging in...
+    </div>
+
+    <div class="form-container bg-white w-full max-w-lg rounded-2xl" id="form-container">
+        <!-- Login Panel -->
+        <div class="form-panel panel-login p-8 md:p-12">
+            <a href="/" class="absolute top-4 left-4 text-blue-600 hover:text-blue-800">
+                <i class="fas fa-arrow-left mr-2"></i>Back
+            </a>
+            <div class="mb-8 text-center">
+                <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-shield-alt text-blue-600 text-2xl"></i>
+                </div>
+                <h2 class="text-3xl font-bold text-gray-800">Welcome back</h2>
+                <p class="text-gray-500 mt-2">Sign in to your account to continue</p>
+            </div>
+            
+            <form action="/login" method="post" class="space-y-4">
+                <div class="input-group">
+                    <i class="fas fa-envelope input-icon"></i>
+                    <input 
+                        type="email" 
+                        id="login-email" 
+                        name="email" 
+                        class="input-with-icon w-full p-3 border border-gray-300 rounded-lg focus:outline-none" 
+                        placeholder="Email address"
+                        required
+                    >
+                </div>
+                
+                <div class="input-group">
+                    <i class="fas fa-lock input-icon"></i>
+                    <input 
+                        type="password" 
+                        id="login-password" 
+                        name="password" 
+                        class="input-with-icon w-full p-3 border border-gray-300 rounded-lg focus:outline-none" 
+                        placeholder="Password"
+                        required
+                    >
+                </div>
+                
+                <button 
+                    type="submit" 
+                    class="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium py-3 px-4 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg"
+                >
+                    Sign In
+                </button>
+            </form>
+            
+            <!-- Switch option for login panel -->
+            <div class="switch-card">
+                <p class="text-gray-600">New user?</p>
+                <button id="show-register" class="switch-btn bg-green-100 text-green-600 hover:bg-green-200">
+                    <i class="fas fa-user-plus"></i> Register
+                </button>
+            </div>
+        </div>
+        
+        <!-- Register Panel -->
+        <div class="form-panel panel-register p-8 md:p-12 inactive">
+            <a href="/" class="absolute top-4 left-4 text-blue-600 hover:text-blue-800">
+                <i class="fas fa-arrow-left mr-2"></i>Back
+            </a>
+            <div class="mb-8 text-center">
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-user-plus text-green-600 text-2xl"></i>
+                </div>
+                <h2 class="text-3xl font-bold text-gray-800">Create account</h2>
+                <p class="text-gray-500 mt-2">Register to use emergency services</p>
+            </div>
+            
+            <form action="/register" method="post" class="space-y-4">
+                <div class="input-group">
+                    <i class="fas fa-user input-icon"></i>
+                    <input 
+                        type="text" 
+                        id="name" 
+                        name="name" 
+                        class="input-with-icon w-full p-3 border border-gray-300 rounded-lg focus:outline-none" 
+                        placeholder="Full Name"
+                        required
+                    >
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="input-group">
+                        <i class="fas fa-birthday-cake input-icon"></i>
+                        <input 
+                            type="number" 
+                            id="age" 
+                            name="age" 
+                            class="input-with-icon w-full p-3 border border-gray-300 rounded-lg focus:outline-none" 
+                            placeholder="Age"
+                            required
+                        >
+                    </div>
+                    
+                    <div class="input-group">
+                        <i class="fas fa-venus-mars input-icon"></i>
+                        <select 
+                            id="gender" 
+                            name="gender" 
+                            class="input-with-icon w-full p-3 border border-gray-300 rounded-lg focus:outline-none appearance-none"
+                            required
+                        >
+                            <option value="" disabled selected>Gender</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="input-group">
+                    <i class="fas fa-envelope input-icon"></i>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        name="email" 
+                        class="input-with-icon w-full p-3 border border-gray-300 rounded-lg focus:outline-none" 
+                        placeholder="Email address"
+                        required
+                    >
+                </div>
+                
+                <div class="input-group">
+                    <i class="fas fa-phone input-icon"></i>
+                    <input 
+                        type="tel" 
+                        id="mobile" 
+                        name="mobile" 
+                        class="input-with-icon w-full p-3 border border-gray-300 rounded-lg focus:outline-none" 
+                        placeholder="Mobile number"
+                        required
+                    >
+                </div>
+                
+                <div class="input-group">
+                    <i class="fas fa-lock input-icon"></i>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password" 
+                        class="input-with-icon w-full p-3 border border-gray-300 rounded-lg focus:outline-none" 
+                        placeholder="Create password"
+                        required
+                    >
+                </div>
+                
+                <div class="flex items-center">
+                    <input type="checkbox" id="terms" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" required>
+                    <label for="terms" class="ml-2 text-sm text-gray-600">
+                        I agree to the <a href="#" class="text-blue-600 hover:underline">Terms of Service</a> and <a href="#" class="text-blue-600 hover:underline">Privacy Policy</a>
+                    </label>
+                </div>
+                
+                <button 
+                    type="submit" 
+                    class="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-medium py-3 px-4 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg"
+                >
+                    Create Account
+                </button>
+            </form>
+            
+            <!-- Switch option for register panel -->
+            <div class="switch-card">
+                <p class="text-gray-600">Already a member?</p>
+                <button id="show-login" class="switch-btn bg-blue-100 text-blue-600 hover:bg-blue-200">
+                    <i class="fas fa-sign-in-alt"></i> Sign In
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginPanel = document.querySelector('.panel-login');
+            const registerPanel = document.querySelector('.panel-register');
+            const showRegister = document.getElementById('show-register');
+            const showLogin = document.getElementById('show-login');
+            const formContainer = document.getElementById('form-container');
+            
+            // Set initial height
+            formContainer.style.height = loginPanel.offsetHeight + 'px';
+            
+            // Function to switch to register panel with improved transition
+            function switchToRegister() {
+                loginPanel.classList.add('inactive');
+                registerPanel.classList.remove('inactive');
+                
+                // Update container height to match the register panel
+                setTimeout(() => {
+                    formContainer.style.height = registerPanel.offsetHeight + 'px';
+                }, 100);
+            }
+            
+            // Function to switch to login panel with improved transition
+            function switchToLogin() {
+                registerPanel.classList.add('inactive');
+                loginPanel.classList.remove('inactive');
+                
+                // Update container height to match the login panel
+                setTimeout(() => {
+                    formContainer.style.height = loginPanel.offsetHeight + 'px';
+                }, 100);
+            }
+            
+            // Add event listeners for panel switching
+            showRegister.addEventListener('click', function(e) {
+                e.preventDefault();
+                switchToRegister();
+            });
+            
+            showLogin.addEventListener('click', function(e) {
+                e.preventDefault();
+                switchToLogin();
+            });
+            
+            // When the login form is submitted, show the loader before redirecting to the dashboard.
+            const loginForm = document.querySelector('form[action="/login"]');
+            loginForm.addEventListener('submit', function(e) {
+                // Display the loader overlay
+                document.getElementById('loader').style.display = 'flex';
+            });
+        });
+    </script>
+</body>
+</html>

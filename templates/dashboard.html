@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="width=device-width, initial-scale=1.0">
+    <title>Emergency Alert System - Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <style>
+        /* Base styles */
+        body {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f8fafc;
+        }
+
+        /* Custom styles for emergency cards */
+        .emergency-card {
+            transform: translateY(0);
+            transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+            overflow: hidden;
+        }
+
+        .emergency-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+            z-index: 0;
+        }
+
+        .emergency-card>* {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Adjust main content for the navigation */
+        @media (min-width: 769px) {
+            .main-content {
+                margin-left: 17rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                padding-bottom: 6rem;
+            }
+        }
+
+        /* Modal animation */
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.9);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .modal-content {
+            animation: modalFadeIn 0.4s ease-out forwards;
+        }
+
+        /* Button hover effects */
+        .action-button {
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .action-button::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            background: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .action-button:hover::after {
+            opacity: 1;
+        }
+
+        .action-button:active {
+            transform: translateY(2px);
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen font-sans">
+    <!-- Include Navigation Component -->
+    {% include 'nav.html' %}
+
+    <div class="flex h-screen">
+        <!-- Main Content Area -->
+        <div class="main-content flex-1 overflow-auto transition-all duration-300">
+            <main class="p-6 md:p-8">
+                <!-- Enhanced Emergency Actions -->
+                <div class="mb-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">Quick Emergency Actions</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- SOS Emergency Card -->
+                        <div data-type="SOS"
+                            class="emergency-card bg-gradient-to-br from-red-500 to-red-600 rounded-2xl shadow-xl p-6 text-white relative">
+                            <div class="flex justify-between items-start mb-6">
+                                <div
+                                    class="bg-white bg-opacity-30 backdrop-filter backdrop-blur-sm rounded-xl p-3 shadow-inner">
+                                    <i class="fas fa-exclamation-triangle text-2xl"></i>
+                                </div>
+                                <span
+                                    class="text-xs bg-white text-red-600 px-3 py-1 rounded-full font-semibold shadow-sm">URGENT</span>
+                            </div>
+                            <h3 class="font-bold text-xl mb-2">SOS Alert</h3>
+                            <p class="text-red-100 text-sm mb-6">Immediately notify all emergency contacts</p>
+                            <button
+                                class="w-full bg-white text-red-600 hover:bg-red-50 font-bold py-3 px-6 rounded-xl transition-colors flex items-center justify-center shadow-md action-button">
+                                <i class="fas fa-bell mr-2"></i> Send SOS
+                            </button>
+                        </div>
+
+                        <!-- Police Emergency Card -->
+                        <div data-type="Police"
+                            class="emergency-card bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-xl p-6 text-white relative">
+                            <div class="flex justify-between items-start mb-6">
+                                <div
+                                    class="bg-white bg-opacity-30 backdrop-filter backdrop-blur-sm rounded-xl p-3 shadow-inner">
+                                    <i class="fas fa-shield-alt text-2xl"></i>
+                                </div>
+                                <span
+                                    class="text-xs bg-white text-blue-600 px-3 py-1 rounded-full font-semibold shadow-sm">POLICE</span>
+                            </div>
+                            <h3 class="font-bold text-xl mb-2">Police Assistance</h3>
+                            <p class="text-blue-100 text-sm mb-6">Contact local police for immediate help</p>
+                            <button
+                                class="w-full bg-white text-blue-600 hover:bg-blue-50 font-bold py-3 px-6 rounded-xl transition-colors flex items-center justify-center shadow-md action-button">
+                                <i class="fas fa-phone-alt mr-2"></i> Police Alert
+                            </button>
+                        </div>
+
+                        <!-- Medical Emergency Card -->
+                        <div data-type="Medical"
+                            class="emergency-card bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-xl p-6 text-white relative">
+                            <div class="flex justify-between items-start mb-6">
+                                <div
+                                    class="bg-white bg-opacity-30 backdrop-filter backdrop-blur-sm rounded-xl p-3 shadow-inner">
+                                    <i class="fas fa-first-aid text-2xl"></i>
+                                </div>
+                                <span
+                                    class="text-xs bg-white text-green-600 px-3 py-1 rounded-full font-semibold shadow-sm">MEDICAL</span>
+                            </div>
+                            <h3 class="font-bold text-xl mb-2">Medical Help</h3>
+                            <p class="text-green-100 text-sm mb-6">Request immediate medical assistance</p>
+                            <button
+                                class="w-full bg-white text-green-600 hover:bg-green-50 font-bold py-3 px-6 rounded-xl transition-colors flex items-center justify-center shadow-md action-button">
+                                <i class="fas fa-ambulance mr-2"></i> Medical Help
+                            </button>
+                        </div>
+
+                        <!-- Fire Emergency Card -->
+                        <div data-type="Fire"
+                            class="emergency-card rounded-2xl shadow-xl p-6 text-white relative"
+                            style="background: linear-gradient(135deg, #f97316 0%, #eab308 100%);">
+                            <div class="flex justify-between items-start mb-6">
+                                <div
+                                    class="bg-orange-200 bg-opacity-60 backdrop-filter backdrop-blur-sm rounded-xl p-3 shadow-inner">
+                                    <i class="fas fa-fire text-2xl"></i>
+                                </div>
+                                <span
+                                    class="text-xs bg-white text-yellow-500 px-3 py-1 rounded-full font-semibold shadow-sm">FIRE</span>
+                            </div>
+                            <h3 class="font-bold text-xl mb-2">Fire Department</h3>
+                            <p class="text-orange-100 text-sm mb-6">Report a fire emergency situation</p>
+                            <button
+                                class="w-full bg-white text-yellow-500 hover:bg-gray-100 font-bold py-3 px-6 rounded-xl transition-colors flex items-center justify-center shadow-md action-button">
+                                <i class="fas fa-fire-extinguisher mr-2"></i> Report Fire
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Emergency Action Modal -->
+    <div id="emergency-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="modal-content bg-white rounded-3xl p-8 max-w-md w-full m-4 transform transition-all">
+            <div class="text-center mb-6">
+                <div id="modal-icon-container"
+                    class="bg-red-100 text-red-500 rounded-full h-20 w-20 flex items-center justify-center mx-auto mb-4">
+                    <i id="modal-icon" class="fas fa-exclamation-triangle text-4xl"></i>
+                </div>
+                <h3 id="modal-title" class="text-2xl font-bold text-gray-800 mb-2">SOS Alert</h3>
+                <p id="modal-description" class="text-gray-600">Are you sure you want to send an emergency alert? This
+                    will notify all your emergency contacts.</p>
+            </div>
+
+            <!-- Replace the current textarea section with this enhanced version -->
+            <div class="mb-5">
+                <div class="flex items-center justify-between mb-2">
+                    <label for="emergency-details" class="block text-sm font-semibold text-gray-700">
+                        <i class="fas fa-comment-alt mr-1.5 text-gray-500"></i> Additional Details (Optional)
+                    </label>
+                    <span id="details-character-count" class="text-xs text-gray-500">0/200</span>
+                </div>
+                
+                <div class="relative">
+                    <textarea 
+                        id="emergency-details" 
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-opacity-50 focus:border-transparent transition-all duration-200 placeholder-gray-400 bg-gray-50 hover:bg-white"
+                        style="min-height: 100px;"
+                        maxlength="200"
+                        placeholder="Describe your emergency situation, location details, or any important information that could help responders..."
+                    ></textarea>
+                    
+                    <div class="absolute bottom-3 right-3 text-gray-400 pointer-events-none">
+                        <i class="fas fa-pen-alt"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col space-y-3">
+                <button id="confirm-emergency"
+                    class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-xl transition-colors flex items-center justify-center action-button">
+                    <i class="fas fa-check-circle mr-2"></i> Confirm Emergency
+                </button>
+                <button id="cancel-emergency"
+                    class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 px-6 rounded-xl transition-colors action-button">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Notification -->
+    <div id="success-notification" class="fixed bottom-6 right-6 bg-white rounded-xl shadow-xl p-4 transform transition-all duration-500 translate-y-24 opacity-0 flex items-center z-50">
+        <div id="notification-icon-container" class="mr-4 rounded-full h-10 w-10 flex items-center justify-center">
+            <i id="notification-icon" class="fas fa-check-circle text-xl"></i>
+        </div>
+        <div>
+            <h4 class="font-semibold text-gray-800" id="notification-title">Success</h4>
+            <p class="text-sm text-gray-600" id="notification-message">Alert sent successfully</p>
+        </div>
+        <button onclick="hideNotification()" class="ml-4 text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "{{ config['FIREBASE_API_KEY'] }}",
+            authDomain: "{{ config['FIREBASE_AUTH_DOMAIN'] }}",
+            databaseURL: "{{ config['FIREBASE_DATABASE_URL'] }}",
+            projectId: "{{ config['FIREBASE_PROJECT_ID'] }}",
+            storageBucket: "{{ config['FIREBASE_STORAGE_BUCKET'] }}",
+            messagingSenderId: "{{ config['FIREBASE_MESSAGING_SENDER_ID'] }}",
+            appId: "{{ config['FIREBASE_APP_ID'] }}"
+        };
+
+        // Initialize Firebase
+        if (typeof firebase !== 'undefined') {
+            firebase.initializeApp(firebaseConfig);
+        }
+
+        // Replace document.write with proper dynamic script loading
+        function loadFirestoreSDK() {
+            if (typeof firebase.firestore === 'undefined') {
+                return new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = 'https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js';
+                    script.onload = () => {
+                        console.log('Firestore SDK loaded successfully');
+                        resolve();
+                    };
+                    script.onerror = () => {
+                        console.error('Failed to load Firestore SDK');
+                        reject(new Error('Failed to load Firestore SDK'));
+                    };
+                    document.head.appendChild(script);
+                });
+            } else {
+                return Promise.resolve();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            // Elements
+            const emergencyCards = document.querySelectorAll('.emergency-card');
+            const emergencyModal = document.getElementById('emergency-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalDescription = document.getElementById('modal-description');
+            const modalIcon = document.getElementById('modal-icon');
+            const modalIconContainer = document.getElementById('modal-icon-container');
+            const confirmEmergency = document.getElementById('confirm-emergency');
+            const cancelEmergency = document.getElementById('cancel-emergency');
+            const emergencyDetails = document.getElementById('emergency-details');
+
+            let currentPosition = null;
+            let currentEmergencyType = '';
+            let locationInterval = null; // Initialize as null
+            let locationUpdateActive = false; // Flag to track if updates are active
+            let isSubmitting = false; // Prevent duplicate submissions
+
+            // Get JWT token from cookie
+            const token = Cookies.get('jwt_token');
+
+            if (!token) {
+                // If no token, redirect to login
+                window.location.href = '/login';
+            }
+
+            // Decode JWT token to get user info
+            function parseJwt(token) {
+                try {
+                    var base64Url = token.split('.')[1];
+                    var base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                    var jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
+                        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                    }).join(''));
+                    return JSON.parse(jsonPayload);
+                } catch (e) {
+                    console.error("Error parsing JWT token:", e);
+                    return {};
+                }
+            }
+
+            // Extract user ID safely
+            function getUserId() {
+                const userData = parseJwt(token);
+                // Check for different possible user ID field names
+                return userData.uid || userData.user_id || userData.sub || userData.id || "anonymous";
+            }
+
+            // Get user's location - enhanced with better error handling
+            function getLocation() {
+                return new Promise((resolve, reject) => {
+                    if (!navigator.geolocation) {
+                        reject(new Error('Geolocation not available'));
+                        return;
+                    }
+
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            currentPosition = {
+                                latitude: position.coords.latitude,
+                                longitude: position.coords.longitude
+                            };
+                            console.log('Location obtained:', currentPosition);
+                            resolve(currentPosition);
+                        },
+                        (error) => {
+                            console.error("Error getting location:", error);
+                            alert('Error getting location: ' + error.message);
+                            reject(error);
+                        },
+                        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                    );
+                });
+            }
+
+            // Get initial location
+            getLocation().catch(err => console.error('Initial location error:', err));
+
+            // Function to start location updates
+            function startLocationUpdates(requestId, database) {
+                // Only enable location updates for Police requests
+                if (currentEmergencyType !== 'Police') return; 
+
+                if (locationUpdateActive) return; // Prevent multiple intervals
+                locationUpdateActive = true;
+                console.log('Starting location updates for request:', requestId);
+
+                // Clear any existing interval for safety
+                if (locationInterval) clearInterval(locationInterval);
+
+                // Create new interval
+                locationInterval = setInterval(() => {
+                    // Check if the request is marked as resolved before updating
+                    database.ref('requests/' + requestId).once('value')
+                        .then(snapshot => {
+                            const data = snapshot.val();
+                            if (data && data.resolved === true) {
+                                console.log('Request resolved. Stopping location updates for request:', requestId);
+                                stopLocationUpdates();
+                                return;
+                            }
+
+                            // Otherwise, update the location
+                            navigator.geolocation.getCurrentPosition(
+                                (position) => {
+                                    const updates = {
+                                        latitude: position.coords.latitude,
+                                        longitude: position.coords.longitude,
+                                        lastUpdated: new Date().toISOString()
+                                    };
+
+                                    console.log('Updating location for request:', requestId, updates);
+
+                                    database.ref('requests/' + requestId).update(updates)
+                                        .then(() => console.log('Location update successful'))
+                                        .catch(error => console.error('Location update failed:', error));
+                                },
+                                (error) => console.error("Error updating location:", error),
+                                { enableHighAccuracy: true, timeout: 4000, maximumAge: 0 }
+                            );
+                        })
+                        .catch(error => {
+                            console.error('Error checking request status:', error);
+                        });
+                }, 5000);
+
+                // Safeguard: stop updates after 30 minutes
+                setTimeout(() => {
+                    stopLocationUpdates();
+                }, 30 * 60 * 1000);
+            }
+
+            // Function to stop location updates
+            function stopLocationUpdates() {
+                if (locationInterval) {
+                    console.log('Stopping location updates');
+                    clearInterval(locationInterval);
+                    locationInterval = null;
+                    locationUpdateActive = false;
+                }
+            }
+
+            // Event listeners for emergency cards
+            emergencyCards.forEach(card => {
+                card.addEventListener('click', function () {
+                    const type = this.dataset.type;
+                    currentEmergencyType = type;
+
+                    // Set modal content based on emergency type
+                    switch (type) {
+                        case 'SOS':
+                            modalTitle.innerText = 'SOS Alert';
+                            modalDescription.innerText = 'Are you sure you want to send an SOS alert? This will notify all your emergency contacts.';
+                            modalIcon.className = 'fas fa-exclamation-triangle text-4xl';
+                            modalIconContainer.className = 'bg-red-100 text-red-500 rounded-full h-20 w-20 flex items-center justify-center mx-auto mb-4';
+                            break;
+                        case 'Police':
+                            modalTitle.innerText = 'Police Assistance';
+                            modalDescription.innerText = 'Are you sure you want to request police assistance?';
+                            modalIcon.className = 'fas fa-shield-alt text-4xl';
+                            modalIconContainer.className = 'bg-blue-100 text-blue-500 rounded-full h-20 w-20 flex items-center justify-center mx-auto mb-4';
+                            break;
+                        case 'Medical':
+                            modalTitle.innerText = 'Medical Help';
+                            modalDescription.innerText = 'Are you sure you want to request medical assistance?';
+                            modalIcon.className = 'fas fa-first-aid text-4xl';
+                            modalIconContainer.className = 'bg-green-100 text-green-500 rounded-full h-20 w-20 flex items-center justify-center mx-auto mb-4';
+                            break;
+                        case 'Fire':
+                            modalTitle.innerText = 'Fire Department';
+                            modalDescription.innerText = 'Are you sure you want to report a fire emergency?';
+                            modalIcon.className = 'fas fa-fire text-4xl';
+                            modalIconContainer.className = 'bg-orange-100 text-orange-500 rounded-full h-20 w-20 flex items-center justify-center mx-auto mb-4';
+                            break;
+                        default:
+                            modalTitle.innerText = 'Emergency Alert';
+                            modalDescription.innerText = 'Are you sure you want to send an emergency alert?';
+                            modalIcon.className = 'fas fa-exclamation-circle text-4xl';
+                            modalIconContainer.className = 'bg-gray-100 text-gray-500 rounded-full h-20 w-20 flex items-center justify-center mx-auto mb-4';
+                            break;
+                    }
+
+                    emergencyModal.classList.remove('hidden');
+                    updateTextareaPlaceholder(type);
+                });
+            });
+
+            // Confirm emergency event
+            confirmEmergency.addEventListener('click', function () {
+                if (isSubmitting) return; // Prevent duplicate submissions
+                isSubmitting = true;
+                confirmEmergency.disabled = true; // Disable button to avoid accidental double-clicks
+                emergencyModal.classList.add('hidden');
+
+                // Start loading Firestore SDK (in parallel with realtime DB push)
+                const firestorePromise = loadFirestoreSDK().catch(error => {
+                    console.warn('Firestore SDK could not be loaded:', error);
+                    return null;
+                });
+
+                getLocation()
+                    .then(location => {
+                        if (!firebase || !firebase.database) {
+                            console.error('Firebase is not properly initialized.');
+                            alert('Failed to initialize Firebase. Please check your configuration.');
+                            isSubmitting = false;
+                            confirmEmergency.disabled = false;
+                            return;
+                        }
+
+                        const database = firebase.database();
+                        const userId = getUserId(); // Get user ID safely
+
+                        if (!userId) {
+                            console.error('User ID is missing or invalid');
+                            alert('Error: User identification failed. Please log in again.');
+                            window.location.href = '/login';
+                            isSubmitting = false;
+                            confirmEmergency.disabled = false;
+                            return;
+                        }
+
+                        // Get additional details from textarea
+                        const details = emergencyDetails.value.trim();
+
+                        // Prepare emergencyData with updated property names and "resolved" field default false
+                        const emergencyData = {
+                            requestType: currentEmergencyType,
+                            latitude: location.latitude,
+                            longitude: location.longitude,
+                            user: userId,
+                            timestamp: new Date().toISOString(),
+                            details: details || null,
+                            resolved: false
+                        };
+
+                        console.log('Sending emergency data:', emergencyData);
+
+                        // Write to realtime database – this push will occur only once
+                        database.ref('requests').push(emergencyData)
+                            .then(snapshot => {
+                                const requestId = snapshot.key;
+                                // Start location updates using this request ID
+                                startLocationUpdates(requestId, database);
+
+                                // Once realtime DB write is complete, attempt to write to Firestore
+                                firestorePromise.then(() => {
+                                    const firestore = firebase.firestore ? firebase.firestore() : null;
+                                    if (firestore) {
+                                        // Include the requestId for future reference
+                                        const firestoreData = {
+                                            ...emergencyData,
+                                            requestId: requestId
+                                        };
+
+                                        firestore.collection('emergencyRequests').add(firestoreData)
+                                            .then(docRef => {
+                                                console.log('Document written to Firestore with ID:', docRef.id);
+                                            })
+                                            .catch(error => {
+                                                console.log('Note: Firestore storage failed; realtime database storage succeeded.');
+                                                console.debug('Firestore error:', error);
+                                            });
+                                    }
+                                });
+
+                                // Show success notification
+                                showNotification(
+                                    currentEmergencyType, 
+                                    currentEmergencyType === 'Police' 
+                                        ? 'Alert sent successfully. Your location will be shared in real-time.' 
+                                        : 'Alert sent successfully.'
+                                );
+
+                                // Clear details field and reset flags
+                                emergencyDetails.value = '';
+                                isSubmitting = false;
+                                confirmEmergency.disabled = false;
+                            })
+                            .catch(error => {
+                                console.error('Emergency request failed:', error);
+                                alert('Failed to send emergency alert. Please try again.');
+                                isSubmitting = false;
+                                confirmEmergency.disabled = false;
+                            });
+                    })
+                    .catch(err => {
+                        console.error('Location error:', err);
+                        alert('Could not get your location. Please enable location services and try again.');
+                        isSubmitting = false;
+                        confirmEmergency.disabled = false;
+                    });
+            });
+
+            // Cancel emergency event
+            cancelEmergency.addEventListener('click', function () {
+                emergencyModal.classList.add('hidden');
+            });
+
+            // Add this inside your DOMContentLoaded event handler, after your variable declarations
+
+            // Setup character counter for emergency details
+            const detailsTextarea = document.getElementById('emergency-details');
+            const characterCount = document.getElementById('details-character-count');
+
+            detailsTextarea.addEventListener('input', function() {
+                const currentLength = this.value.length;
+                const maxLength = this.getAttribute('maxlength');
+                characterCount.textContent = `${currentLength}/${maxLength}`;
+                
+                // Change color when approaching limit
+                if (currentLength > maxLength * 0.8) {
+                    characterCount.classList.add('text-amber-500');
+                } else {
+                    characterCount.classList.remove('text-amber-500');
+                }
+            });
+
+            // Enhance textarea behavior on emergency type change
+            function updateTextareaPlaceholder(type) {
+                let placeholderText = "Describe your emergency situation...";
+                
+                switch (type) {
+                    case 'SOS':
+                        placeholderText = "Describe what's happening, who needs help, and any immediate dangers...";
+                        break;
+                    case 'Police':
+                        placeholderText = "Describe the situation, any suspects, or potential dangers...";
+                        break;
+                    case 'Medical':
+                        placeholderText = "Describe your medical condition, symptoms, or what assistance you need...";
+                        break;
+                    case 'Fire':
+                        placeholderText = "Describe the fire, its size, what's burning, and if anyone is trapped...";
+                        break;
+                }
+                
+                detailsTextarea.placeholder = placeholderText;
+            }
+        });
+
+        // Add these functions to your existing script section
+        function showNotification(type, message) {
+            const notification = document.getElementById('success-notification');
+            const notificationTitle = document.getElementById('notification-title');
+            const notificationMessage = document.getElementById('notification-message');
+            const notificationIcon = document.getElementById('notification-icon');
+            const notificationIconContainer = document.getElementById('notification-icon-container');
+            
+            // Set notification content based on alert type
+            switch (type) {
+                case 'SOS':
+                    notificationTitle.innerText = 'SOS Alert Sent';
+                    notificationIconContainer.className = 'mr-4 bg-red-100 text-red-500 rounded-full h-10 w-10 flex items-center justify-center';
+                    notificationIcon.className = 'fas fa-exclamation-triangle text-xl';
+                    break;
+                case 'Police':
+                    notificationTitle.innerText = 'Police Alert Sent';
+                    notificationIconContainer.className = 'mr-4 bg-blue-100 text-blue-500 rounded-full h-10 w-10 flex items-center justify-center';
+                    notificationIcon.className = 'fas fa-shield-alt text-xl';
+                    break;
+                case 'Medical':
+                    notificationTitle.innerText = 'Medical Help Requested';
+                    notificationIconContainer.className = 'mr-4 bg-green-100 text-green-500 rounded-full h-10 w-10 flex items-center justify-center';
+                    notificationIcon.className = 'fas fa-first-aid text-xl';
+                    break;
+                case 'Fire':
+                    notificationTitle.innerText = 'Fire Alert Sent';
+                    notificationIconContainer.className = 'mr-4 bg-orange-100 text-orange-500 rounded-full h-10 w-10 flex items-center justify-center';
+                    notificationIcon.className = 'fas fa-fire text-xl';
+                    break;
+                default:
+                    notificationTitle.innerText = 'Alert Sent';
+                    notificationIconContainer.className = 'mr-4 bg-gray-100 text-gray-500 rounded-full h-10 w-10 flex items-center justify-center';
+                    notificationIcon.className = 'fas fa-bell text-xl';
+            }
+            
+            notificationMessage.innerText = message || 'Your emergency alert has been sent successfully';
+            
+            // Show notification with animation
+            notification.classList.remove('translate-y-24', 'opacity-0');
+            
+            // Auto-hide after 5 seconds
+            setTimeout(hideNotification, 5000);
+        }
+        
+        function hideNotification() {
+            const notification = document.getElementById('success-notification');
+            notification.classList.add('translate-y-24', 'opacity-0');
+        }
+    </script>
+</body>
+
+</html>

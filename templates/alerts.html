@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergency Alert System - Alerts</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f8fafc;
+        }
+
+        /* Alert card animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .alert-card {
+            animation: fadeInUp 0.5s ease-out forwards;
+        }
+
+        .alert-card-1 {
+            animation-delay: 0.1s;
+        }
+
+        .alert-card-2 {
+            animation-delay: 0.2s;
+        }
+
+        .alert-card-3 {
+            animation-delay: 0.3s;
+        }
+
+        .alert-card-4 {
+            animation-delay: 0.4s;
+        }
+
+        /* Adjust main content for the navigation */
+        @media (min-width: 769px) {
+            .main-content {
+                margin-left: 17rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                padding-bottom: 8rem;
+            }
+        }
+
+        /* Shimmer loading effect */
+        .shimmer {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: -200% 0;
+            }
+
+            100% {
+                background-position: 200% 0;
+            }
+        }
+
+        /* Resolve button animation */
+        .resolve-btn {
+            transition: all 0.3s ease;
+        }
+
+        .resolve-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .alert-card.removing {
+            animation: fadeOut 0.5s forwards;
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            to {
+                opacity: 0;
+                transform: translateY(-20px);
+                height: 0;
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen font-sans">
+    <!-- Include Navigation Component -->
+    {% include 'nav.html' %}
+    <div class="flex h-screen">
+        <!-- Main Content Area -->
+        <div class="main-content flex-1 overflow-auto transition-all duration-300">
+            <!-- Alerts Container -->
+            <div id="alerts-container" class="p-6 md:p-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4 mt-4">Emergency Requests</h2>
+                <!-- Loading state placeholder -->
+                <div id="loading-state" class="flex flex-col items-center justify-center py-12 hidden">
+                    <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4">
+                    </div>
+                    <p class="text-gray-600">Loading requests...</p>
+                </div>
+                <!-- Empty state placeholder -->
+                <div id="empty-state" class="flex flex-col items-center justify-center py-16 hidden">
+                    <div class="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mb-4">
+                        <i class="fas fa-bell-slash text-gray-400 text-2xl"></i>
+                    </div>
+                    <p class="text-gray-500 text-lg font-medium">No emergency requests</p>
+                </div>
+                <!-- Error state placeholder -->
+                <div id="error-state" class="flex flex-col items-center justify-center py-16 hidden">
+                    <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                        <i class="fas fa-exclamation-triangle text-red-500 text-2xl"></i>
+                    </div>
+                    <p class="text-red-500 text-lg font-medium">Error loading requests</p>
+                    <p id="error-message" class="text-red-400 mt-2"></p>
+                </div>
+                <!-- Alerts list -->
+                <div id="alerts-list" class="space-y-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "{{ config['FIREBASE_API_KEY'] }}",
+            authDomain: "{{ config['FIREBASE_AUTH_DOMAIN'] }}",
+            databaseURL: "{{ config['FIREBASE_DATABASE_URL'] }}",
+            projectId: "{{ config['FIREBASE_PROJECT_ID'] }}",
+            storageBucket: "{{ config['FIREBASE_STORAGE_BUCKET'] }}",
+            messagingSenderId: "{{ config['FIREBASE_MESSAGING_SENDER_ID'] }}",
+            appId: "{{ config['FIREBASE_APP_ID'] }}"
+        };
+
+        // Initialize Firebase
+        if (typeof firebase !== 'undefined') {
+            firebase.initializeApp(firebaseConfig);
+        }
+
+        // Function to load Firestore SDK if not already loaded
+        function loadFirestoreSDK() {
+            if (typeof firebase.firestore === 'undefined') {
+                return new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = 'https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js';
+                    script.onload = () => {
+                        console.log('Firestore SDK loaded successfully');
+                        resolve();
+                    };
+                    script.onerror = () => {
+                        console.error('Failed to load Firestore SDK');
+                        reject(new Error('Failed to load Firestore SDK'));
+                    };
+                    document.head.appendChild(script);
+                });
+            } else {
+                return Promise.resolve();
+            }
+        }
+
+        // Function to mark an alert as resolved - completely remove from realtime DB and update firestore
+        function resolveAlert(alertId) {
+            const database = firebase.database();
+            
+            // First remove the request from realtime database
+            const realtimePromise = database.ref('requests/' + alertId).remove();
+            
+            // Then try to update Firestore if available (but don't remove from Firestore - just mark as resolved)
+            const firestorePromise = loadFirestoreSDK()
+                .then(() => {
+                    if (firebase.firestore) {
+                        const firestore = firebase.firestore();
+                        // Find the Firestore document with matching requestId
+                        return firestore.collection('emergencyRequests')
+                            .where('requestId', '==', alertId)
+                            .get()
+                            .then((querySnapshot) => {
+                                if (!querySnapshot.empty) {
+                                    const promises = [];
+                                    querySnapshot.forEach((doc) => {
+                                        // Update Firestore documents to show resolved=true (keep record for analytics)
+                                        promises.push(doc.ref.update({ resolved: true }));
+                                    });
+                                    return Promise.all(promises);
+                                }
+                                console.log('No matching Firestore document found for requestId:', alertId);
+                            })
+                            .catch(error => {
+                                console.warn('Firestore update failed:', error);
+                            });
+                    }
+                    return null;
+                })
+                .catch(error => {
+                    console.warn('Could not load Firestore SDK:', error);
+                    return null;
+                });
+            
+            // Return promise that resolves when realtime DB is updated
+            // We don't want to block UI on Firestore updates
+            return realtimePromise;
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const alertsContainer = document.getElementById('alerts-container');
+            const loadingState = document.getElementById('loading-state');
+            const emptyState = document.getElementById('empty-state');
+            const errorState = document.getElementById('error-state');
+            const errorMessage = document.getElementById('error-message');
+            const alertsList = document.getElementById('alerts-list');
+
+            // Get JWT token from cookie
+            const token = Cookies.get('jwt_token');
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+
+            // Display loading state
+            loadingState.classList.remove('hidden');
+
+            // Decode JWT token to get user info
+            function parseJwt(token) {
+                try {
+                    var base64Url = token.split('.')[1];
+                    var base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                    var jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
+                        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                    }).join(''));
+                    return JSON.parse(jsonPayload);
+                } catch (e) {
+                    console.error("Error parsing JWT token:", e);
+                    return {};
+                }
+            }
+
+            // Extract user ID safely
+            function getUserId() {
+                const userData = parseJwt(token);
+                return userData.uid || userData.user_id || userData.sub || userData.id || "anonymous";
+            }
+
+            try {
+                const userId = getUserId();
+                if (!firebase || !firebase.database) {
+                    throw new Error('Firebase is not properly initialized');
+                }
+                const database = firebase.database();
+                const requestsRef = database.ref('requests');
+
+                // Listen for changes in requests and filter out resolved alerts
+                requestsRef.on('value', (snapshot) => {
+                    loadingState.classList.add('hidden');
+                    alertsList.innerHTML = '';
+
+                    if (!snapshot.exists()) {
+                        emptyState.classList.remove('hidden');
+                        return;
+                    }
+
+                    const requests = snapshot.val();
+                    let alertsData = [];
+
+                    // Filter for current user's requests which are not marked as resolved
+                    for (const key in requests) {
+                        const request = requests[key];
+                        if (request.user === userId && !request.resolved) {
+                            alertsData.push({ id: key, ...request });
+                        }
+                    }
+
+                    // Sort by timestamp (newest first)
+                    alertsData.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                    if (alertsData.length === 0) {
+                        emptyState.classList.remove('hidden');
+                        return;
+                    } else {
+                        emptyState.classList.add('hidden');
+                    }
+
+                    // Display alerts with extra details if provided
+                    alertsData.forEach((alert, index) => {
+                        const timestamp = new Date(alert.timestamp);
+                        const formattedDate = new Intl.DateTimeFormat('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: 'numeric',
+                            minute: 'numeric',
+                            hour12: true
+                        }).format(timestamp);
+
+                        // Choose styling based on request type
+                        let cardColor, cardIcon, alertTypeName;
+                        switch (alert.requestType) {
+                            case 'SOS':
+                                cardColor = 'from-red-500 to-red-600';
+                                cardIcon = 'fa-exclamation-triangle';
+                                alertTypeName = 'SOS Alert';
+                                break;
+                            case 'Medical':
+                                cardColor = 'from-green-500 to-green-600';
+                                cardIcon = 'fa-first-aid';
+                                alertTypeName = 'Medical Help';
+                                break;
+                            case 'Police':
+                                cardColor = 'from-blue-500 to-blue-600';
+                                cardIcon = 'fa-shield-alt';
+                                alertTypeName = 'Police Assistance';
+                                break;
+                            case 'Fire':
+                                cardColor = 'from-yellow-500 to-yellow-600';
+                                cardIcon = 'fa-fire';
+                                alertTypeName = 'Fire Department';
+                                break;
+                            default:
+                                cardColor = 'from-gray-500 to-gray-600';
+                                cardIcon = 'fa-exclamation-circle';
+                                alertTypeName = 'Emergency';
+                        }
+
+                        const alertCardHTML = `
+                            <div id="alert-${alert.id}" class="alert-card alert-card-${index + 1} bg-gradient-to-br ${cardColor} rounded-2xl shadow-xl p-6 text-white relative opacity-0">
+                                <div class="flex items-start mb-4">
+                                    <div class="bg-white bg-opacity-20 backdrop-filter backdrop-blur-sm rounded-xl p-3 shadow-inner">
+                                        <i class="fas ${cardIcon} text-xl"></i>
+                                    </div>
+                                    <div class="ml-4 flex-1">
+                                        <h3 class="font-bold text-xl">${alertTypeName}</h3>
+                                        <p class="text-white text-opacity-70">${formattedDate}</p>
+                                    </div>
+                                </div>
+                                ${alert.latitude && alert.longitude ? `
+                                    <p class="text-sm text-white text-opacity-90 mt-2">
+                                        Location: ${parseFloat(alert.latitude).toFixed(4)}, ${parseFloat(alert.longitude).toFixed(4)}
+                                    </p>
+                                ` : ''}
+                                ${alert.details ? `
+                                    <p class="mt-2 text-sm text-white opacity-80">
+                                        Details: ${alert.details}
+                                    </p>
+                                ` : ''}
+                                <div class="mt-4 text-right">
+                                    <button 
+                                        data-alert-id="${alert.id}" 
+                                        data-alert-type="${alert.requestType}"
+                                        class="resolve-btn bg-white text-${alert.requestType === 'SOS' ? 'red' :
+                                            alert.requestType === 'Medical' ? 'green' :
+                                            alert.requestType === 'Police' ? 'blue' : 'yellow'}-600 hover:bg-opacity-90 font-semibold py-2 px-4 rounded-lg transition-all shadow-md">
+                                        <i class="fas fa-check mr-2"></i> pending
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        alertsList.innerHTML += alertCardHTML;
+                    });
+
+                    // Add event listeners for resolve buttons
+                    document.querySelectorAll('.resolve-btn').forEach(button => {
+                        button.addEventListener('click', function () {
+                            const alertId = this.getAttribute('data-alert-id');
+                            const alertType = this.getAttribute('data-alert-type');
+                            
+                            // Show confirmation modal instead of immediately resolving
+                            showConfirmationModal(alertId, alertType);
+                        });
+                    });
+
+                    // Add event handlers for the confirmation modal buttons
+                    document.getElementById('confirm-resolve').addEventListener('click', confirmResolveAlert);
+                    document.getElementById('cancel-resolve').addEventListener('click', hideConfirmationModal);
+                }, (error) => {
+                    loadingState.classList.add('hidden');
+                    errorState.classList.remove('hidden');
+                    errorMessage.textContent = error.message;
+                    console.error('Error fetching alerts:', error);
+                });
+            } catch (error) {
+                loadingState.classList.add('hidden');
+                errorState.classList.remove('hidden');
+                errorMessage.textContent = error.message;
+                console.error('Error initializing alerts:', error);
+            }
+        });
+    </script>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="fixed inset-0 bg-black bg-opacity-75 backdrop-filter backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 transform transition-all duration-300">
+            <div class="flex flex-col items-center text-center mb-6">
+                <div class="bg-blue-100 p-3 rounded-full mb-4">
+                    <i class="fas fa-check text-blue-600 text-2xl"></i>
+                </div>
+                <h3 id="confirm-title" class="text-xl font-semibold text-gray-800">Mark as Resolved?</h3>
+                <p class="text-gray-600 mt-2">
+                    This will remove the emergency alert from the active queue. This action cannot be undone.
+                </p>
+            </div>
+            
+            <div class="flex gap-3">
+                <button 
+                    id="cancel-resolve"
+                    class="flex-1 px-4 py-3 bg-gray-200 hover:bg-gray-300 rounded-lg text-gray-700 font-medium transition-colors"
+                >
+                    Cancel
+                </button>
+                <button 
+                    id="confirm-resolve"
+                    class="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium flex items-center justify-center gap-2 transition-colors"
+                >
+                    <i class="fas fa-check mr-2"></i> Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Add these functions to manage the confirmation modal
+        let currentAlertId = null;
+        let currentAlertCard = null;
+        
+        function showConfirmationModal(alertId, alertType) {
+            const modal = document.getElementById('confirmation-modal');
+            const confirmTitle = document.getElementById('confirm-title');
+            const confirmButton = document.getElementById('confirm-resolve');
+            
+            // Store the current alert ID
+            currentAlertId = alertId;
+            currentAlertCard = document.getElementById(`alert-${alertId}`);
+            
+            // Set button color based on alert type
+            switch (alertType) {
+                case 'SOS':
+                    confirmButton.className = 'flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 rounded-lg text-white font-medium flex items-center justify-center gap-2 transition-colors';
+                    break;
+                case 'Medical':
+                    confirmButton.className = 'flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 rounded-lg text-white font-medium flex items-center justify-center gap-2 transition-colors';
+                    break;
+                case 'Police':
+                    confirmButton.className = 'flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium flex items-center justify-center gap-2 transition-colors';
+                    break;
+                case 'Fire':
+                    confirmButton.className = 'flex-1 px-4 py-3 bg-yellow-600 hover:bg-yellow-700 rounded-lg text-white font-medium flex items-center justify-center gap-2 transition-colors';
+                    break;
+                default:
+                    confirmButton.className = 'flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium flex items-center justify-center gap-2 transition-colors';
+            }
+            
+            // Show the modal with animation
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.querySelector('div').classList.add('scale-100', 'opacity-100');
+                modal.querySelector('div').classList.remove('scale-95', 'opacity-0');
+            }, 10);
+        }
+        
+        function hideConfirmationModal() {
+            const modal = document.getElementById('confirmation-modal');
+            const modalContent = modal.querySelector('div');
+            
+            // Hide with animation
+            modalContent.classList.remove('scale-100', 'opacity-100');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                // Reset current alert
+                currentAlertId = null;
+                currentAlertCard = null;
+            }, 300);
+        }
+        
+        // Function to handle the confirmation
+        function confirmResolveAlert() {
+            if (!currentAlertId) return;
+            
+            // Add the removing animation class
+            if (currentAlertCard) {
+                currentAlertCard.classList.add('removing');
+            }
+            
+            // Hide the confirmation modal
+            hideConfirmationModal();
+            
+            // Call the resolve function
+            resolveAlert(currentAlertId)
+                .then(() => {
+                    console.log('Alert marked as resolved.');
+                    
+                    // Remove the card from UI after animation completes
+                    if (currentAlertCard && currentAlertCard.parentNode) {
+                        setTimeout(() => {
+                            currentAlertCard.parentNode.removeChild(currentAlertCard);
+                            
+                            // Check if alerts list is now empty
+                            const alertsList = document.getElementById('alerts-list');
+                            if (alertsList.children.length === 0) {
+                                document.getElementById('empty-state').classList.remove('hidden');
+                            }
+                        }, 500);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating alert:', error);
+                    if (currentAlertCard) {
+                        currentAlertCard.classList.remove('removing');
+                    }
+                    alert('Error resolving alert: ' + error.message);
+                });
+        }
+
+        // Event listeners for modal buttons
+        document.getElementById('cancel-resolve').addEventListener('click', hideConfirmationModal);
+        document.getElementById('confirm-resolve').addEventListener('click', confirmResolveAlert);
+    </script>
+</body>
+
+</html>

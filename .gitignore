@@ -1,0 +1,51 @@
+# Python virtual environment
+venv/
+env/
+ENV/
+.env
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Firebase credentials and sensitive data
+firebase.json
+*.json
+!package.json
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Log files
+*.log
+
+# Distribution/packaging
+dist/
+build/
+*.egg-info/
+
+# Flask specific
+instance/
+.webassets-cache
+
+# Local development
+.DS_Store
+*.sqlite
+*.db
+*.pem
+
+# Environment variables
+.env*
+!.env.example
+
+# System Files
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp

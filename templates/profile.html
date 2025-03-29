@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergency Alert System - Profile</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        
+        .profile-card {
+            animation: fadeInUp 0.8s ease;
+        }
+        
+        .stats-card {
+            animation: fadeInUp 1s ease;
+        }
+        
+        .location-card {
+            animation: fadeInUp 1.2s ease;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .profile-gradient {
+            background-image: linear-gradient(135deg, #f0f4ff, #ffffff);
+        }
+        
+        .stats-gradient {
+            background-image: linear-gradient(135deg, #f0f9ff, #ffffff);
+        }
+        
+        .location-gradient {
+            background-image: linear-gradient(135deg, #f0fffc, #ffffff);
+        }
+        
+        .avatar {
+            background-image: linear-gradient(45deg, #3b82f6, #2563eb);
+            color: white;
+            width: 80px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 0 auto 1.5rem auto;
+        }
+        
+        .shimmer {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        
+        @keyframes shimmer {
+            to {
+                background-position: -200% 0;
+            }
+        }
+        
+        /* Adjusted layout to position content next to sidebar */
+        @media (min-width: 769px) {
+            .main-content {
+                margin-left: 17rem;
+            }
+        }
+
+        /* Add proper bottom margin for mobile view */
+        @media (max-width: 768px) {
+            .main-content {
+                padding-bottom: 10rem;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Include Navigation Component -->
+    {% include 'nav.html' %}
+
+    <!-- Main Content with proper positioning -->
+    <div class="main-content py-8 px-6 md:py-12">
+        <div class="max-w-4xl space-y-6">
+            <!-- Profile Card -->
+            <div id="user-profile" class="profile-card p-8 rounded-3xl profile-gradient shadow-lg border border-blue-100">
+                <div class="text-center">
+                    <div id="shimmer-avatar" class="shimmer mx-auto w-20 h-20 rounded-full mb-6"></div>
+                    <div id="shimmer-name" class="shimmer h-8 w-48 mx-auto rounded mb-4"></div>
+                    <div id="shimmer-email" class="shimmer h-6 w-64 mx-auto rounded mb-2"></div>
+                </div>
+            </div>
+            
+            <!-- Stats Card -->
+            <div id="user-stats" class="stats-card p-8 rounded-3xl stats-gradient shadow-lg border border-blue-100">
+                <div class="text-center">
+                    <div id="shimmer-stats-title" class="shimmer h-7 w-32 mx-auto rounded mb-6"></div>
+                    <div class="flex justify-center">
+                        <div>
+                            <div id="shimmer-alerts-count" class="shimmer h-10 w-20 mx-auto rounded mb-2"></div>
+                            <div id="shimmer-alerts-label" class="shimmer h-5 w-24 mx-auto rounded"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Location Card - Enhanced -->
+            <div id="user-location" class="location-card p-8 rounded-3xl location-gradient shadow-lg border border-blue-100">
+                <div class="text-center">
+                    <div id="shimmer-location-title" class="shimmer h-7 w-40 mx-auto rounded mb-6"></div>
+                    <div id="shimmer-location-address" class="shimmer h-6 w-3/4 mx-auto rounded mb-2"></div>
+                    <div id="shimmer-location-coords" class="shimmer h-6 w-56 mx-auto rounded"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "{{ config['FIREBASE_API_KEY'] }}",
+            authDomain: "{{ config['FIREBASE_AUTH_DOMAIN'] }}",
+            databaseURL: "{{ config['FIREBASE_DATABASE_URL'] }}",
+            projectId: "{{ config['FIREBASE_PROJECT_ID'] }}",
+            storageBucket: "{{ config['FIREBASE_STORAGE_BUCKET'] }}",
+            messagingSenderId: "{{ config['FIREBASE_MESSAGING_SENDER_ID'] }}",
+            appId: "{{ config['FIREBASE_APP_ID'] }}"
+        };
+        
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        
+        // Parse JWT token
+        function parseJwt(token) {
+            try {
+                var base64Url = token.split('.')[1];
+                var base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                var jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                return JSON.parse(jsonPayload);
+            } catch (e) {
+                console.error("Error parsing JWT token:", e);
+                return null;
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get token from cookies
+            const token = Cookies.get('jwt_token');
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+            
+            // Parse token to get user ID
+            const userData = parseJwt(token);
+            const userId = userData.uid;
+            
+            if (!userId) {
+                window.location.href = '/login';
+                return;
+            }
+            
+            
+            // Get user's current location with high accuracy
+            let locationData = {
+                latitude: null,
+                longitude: null,
+                address: 'Locating your position...',
+                accuracy: null
+            };
+            
+            if (navigator.geolocation) {
+                const geoOptions = {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                };
+                
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        locationData.latitude = position.coords.latitude;
+                        locationData.longitude = position.coords.longitude;
+                        locationData.accuracy = position.coords.accuracy;
+                        
+                        // Use a more precise reverse geocoding service
+                        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}&addressdetails=1&zoom=18`)
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data && data.display_name) {
+                                    // Format address more cleanly
+                                    const address = data.address;
+                                    let formattedAddress = [];
+                                    
+                                    if (address.road) formattedAddress.push(address.road);
+                                    if (address.suburb) formattedAddress.push(address.suburb);
+                                    if (address.city) formattedAddress.push(address.city);
+                                    if (address.state) formattedAddress.push(address.state);
+                                    if (address.postcode) formattedAddress.push(address.postcode);
+                                    if (address.country) formattedAddress.push(address.country);
+                                    
+                                    locationData.address = formattedAddress.join(', ');
+                                } else {
+                                    locationData.address = data.display_name || "Location found but address unavailable";
+                                }
+                                updateLocationCard();
+                            })
+                            .catch(() => {
+                                locationData.address = "Address lookup unavailable";
+                                updateLocationCard();
+                            });
+                    },
+                    (error) => {
+                        console.error("Geolocation error:", error);
+                        locationData.address = `Location error: ${error.message}`;
+                        updateLocationCard();
+                    },
+                    geoOptions
+                );
+            } else {
+                locationData.address = "Geolocation not supported by your browser";
+                updateLocationCard();
+            }
+            
+            // Function to update location card with enhanced details
+            function updateLocationCard() {
+                const locationCard = document.getElementById('user-location');
+                
+                // Remove shimmer elements
+                document.getElementById('shimmer-location-title').style.display = 'none';
+                document.getElementById('shimmer-location-address').style.display = 'none';
+                document.getElementById('shimmer-location-coords').style.display = 'none';
+                
+                // Create actual content with enhanced details
+                locationCard.innerHTML = `
+                    <div class="flex items-center justify-center mb-6">
+                        <div class="bg-green-100 p-3 rounded-full">
+                            <i class="fas fa-map-marker-alt text-green-600 text-2xl"></i>
+                        </div>
+                        <h2 class="text-2xl font-semibold ml-3">Current Location</h2>
+                    </div>
+                    
+                    <div class="text-center mb-4">
+                        <p class="text-gray-800 text-lg font-medium mb-3">${locationData.address}</p>
+                        
+                        ${locationData.latitude ? 
+                            `<div class="inline-flex items-center bg-green-50 px-3 py-1 rounded-full text-green-700">
+                                <i class="fas fa-check-circle mr-2"></i>
+                                <span>Location found</span>
+                            </div>` : 
+                            `<div class="inline-flex items-center bg-yellow-50 px-3 py-1 rounded-full text-yellow-700">
+                                <i class="fas fa-exclamation-circle mr-2"></i>
+                                <span>Locating...</span>
+                            </div>`
+                        }
+                    </div>
+                    
+                    ${locationData.latitude ? 
+                        `<div class="grid grid-cols-2 gap-4 mt-4">
+                            <div class="bg-green-50 p-4 rounded-xl">
+                                <p class="text-xs text-green-700 mb-1">LATITUDE</p>
+                                <p class="text-gray-800 font-mono font-medium">${locationData.latitude.toFixed(6)}</p>
+                            </div>
+                            <div class="bg-green-50 p-4 rounded-xl">
+                                <p class="text-xs text-green-700 mb-1">LONGITUDE</p>
+                                <p class="text-gray-800 font-mono font-medium">${locationData.longitude.toFixed(6)}</p>
+                            </div>
+                        </div>
+                        
+                        ${locationData.accuracy ? 
+                            `<div class="mt-4 bg-blue-50 p-3 rounded-xl text-center">
+                                <p class="text-xs text-blue-700 mb-1">ACCURACY</p>
+                                <p class="text-gray-800">Within ${Math.round(locationData.accuracy)} meters</p>
+                            </div>` : ''
+                        }` : 
+                        '<p class="text-gray-500 text-center mt-4">Coordinates unavailable</p>'
+                    }
+                    
+                    <div class="mt-6 text-center">
+                        <button id="refresh-location" class="bg-green-100 hover:bg-green-200 text-green-700 px-4 py-2 rounded-lg transition-colors flex items-center mx-auto">
+                            <i class="fas fa-sync-alt mr-2"></i> Refresh Location
+                        </button>
+                    </div>
+                `;
+                
+                // Add event listener for refresh button
+                document.getElementById('refresh-location').addEventListener('click', function() {
+                    locationData.address = 'Refreshing location...';
+                    updateLocationCard();
+                    
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                            (position) => {
+                                locationData.latitude = position.coords.latitude;
+                                locationData.longitude = position.coords.longitude;
+                                locationData.accuracy = position.coords.accuracy;
+                                
+                                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}&addressdetails=1&zoom=18`)
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        if (data && data.display_name) {
+                                            const address = data.address;
+                                            let formattedAddress = [];
+                                            
+                                            if (address.road) formattedAddress.push(address.road);
+                                            if (address.suburb) formattedAddress.push(address.suburb);
+                                            if (address.city) formattedAddress.push(address.city);
+                                            if (address.state) formattedAddress.push(address.state);
+                                            if (address.postcode) formattedAddress.push(address.postcode);
+                                            if (address.country) formattedAddress.push(address.country);
+                                            
+                                            locationData.address = formattedAddress.join(', ');
+                                        } else {
+                                            locationData.address = data.display_name || "Location found but address unavailable";
+                                        }
+                                        updateLocationCard();
+                                    })
+                                    .catch(() => {
+                                        locationData.address = "Address lookup unavailable";
+                                        updateLocationCard();
+                                    });
+                            },
+                            (error) => {
+                                locationData.address = `Location error: ${error.message}`;
+                                updateLocationCard();
+                            },
+                            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                        );
+                    }
+                });
+            }
+            
+            // Fetch user data from Firestore
+            const profileRef = firebase.firestore().collection('users').doc(userId);
+            profileRef.get().then(doc => {
+                const profileCard = document.getElementById('user-profile');
+                
+                if (doc.exists) {
+                    const data = doc.data();
+                    
+                    // Hide shimmer elements
+                    document.getElementById('shimmer-avatar').style.display = 'none';
+                    document.getElementById('shimmer-name').style.display = 'none';
+                    document.getElementById('shimmer-email').style.display = 'none';
+                    
+                    // Get first letter of name for avatar
+                    const firstLetter = (data.name || 'U')[0].toUpperCase();
+                    
+                    // Create actual content
+                    profileCard.innerHTML = `
+                        <div class="avatar">
+                            ${firstLetter}
+                        </div>
+                        <div class="text-center">
+                            <h1 class="text-2xl font-bold text-gray-900">${data.name || 'User'}</h1>
+                            <p class="text-gray-600 text-lg">${data.email || userData.email}</p>
+                            
+                            <div class="grid grid-cols-3 gap-4 mt-6">
+                                <div class="bg-gray-50 p-3 rounded-lg">
+                                    <p class="text-gray-500 text-sm">Age</p>
+                                    <p class="text-gray-800 font-medium">${data.age || 'N/A'}</p>
+                                </div>
+                                <div class="bg-gray-50 p-3 rounded-lg">
+                                    <p class="text-gray-500 text-sm">Phone</p>
+                                    <p class="text-gray-800 font-medium">${data.mobile || 'N/A'}</p>
+                                </div>
+                                <div class="bg-gray-50 p-3 rounded-lg">
+                                    <p class="text-gray-500 text-sm">Gender</p>
+                                    <p class="text-gray-800 font-medium">${data.gender || 'N/A'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Count alerts from Firebase Realtime Database
+                    const database = firebase.database();
+                    const requestsRef = database.ref('requests');
+                    
+                    requestsRef.once('value').then(snapshot => {
+                        let alertCount = 0;
+                        
+                        if (snapshot.exists()) {
+                            const requests = snapshot.val();
+                            
+                            // Count alerts for this user
+                            Object.keys(requests || {}).forEach(key => {
+                                // Use 'user' property instead of 'userId' to match the dashboard creation pattern
+                                if (requests[key].user === userId) {
+                                    alertCount++;
+                                }
+                            });
+                        }
+                        
+                        updateStatsCard(alertCount);
+                    }).catch(error => {
+                        console.error("Error fetching alert count:", error);
+                        updateStatsCard(0);
+                    });
+                    
+                } else {
+                    profileCard.innerHTML = `
+                        <div class="text-center">
+                            <i class="fas fa-exclamation-circle text-red-500 text-5xl mb-4"></i>
+                            <p class="text-xl text-red-500">No user data found</p>
+                            <p class="text-gray-500 mt-2">Your profile information is not available.</p>
+                        </div>
+                    `;
+                    updateStatsCard(0);
+                }
+            }).catch(error => {
+                console.error("Error fetching user data:", error);
+                document.getElementById('user-profile').innerHTML = `
+                    <div class="text-center">
+                        <i class="fas fa-exclamation-triangle text-red-500 text-5xl mb-4"></i>
+                        <p class="text-xl text-red-500">Error loading profile</p>
+                        <p class="text-gray-500 mt-2">${error.message}</p>
+                    </div>
+                `;
+                updateStatsCard(0);
+            });
+            
+            // Replace the existing updateStatsCard function with this enhanced version
+            function updateStatsCard(realtimeAlertCount) {
+                const statsCard = document.getElementById('user-stats');
+                
+                // Remove shimmer elements
+                document.getElementById('shimmer-stats-title').style.display = 'none';
+                document.getElementById('shimmer-alerts-count').style.display = 'none';
+                document.getElementById('shimmer-alerts-label').style.display = 'none';
+                
+                // Show loading state while we fetch Firestore data
+                statsCard.innerHTML = `
+                    <div class="flex items-center justify-center mb-6">
+                        <div class="bg-blue-100 p-3 rounded-full">
+                            <i class="fas fa-bell text-blue-600 text-2xl"></i>
+                        </div>
+                        <h2 class="text-2xl font-semibold ml-3">Your Alerts</h2>
+                    </div>
+                    <div class="flex justify-center">
+                        <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                `;
+                
+                // Load Firestore if not already loaded
+                if (typeof firebase.firestore === 'undefined') {
+                    const script = document.createElement('script');
+                    script.src = 'https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js';
+                    script.onload = () => {
+                        fetchFirestoreAlerts(userId, realtimeAlertCount);
+                    };
+                    script.onerror = () => {
+                        console.error('Failed to load Firestore SDK');
+                        displayStatsWithoutFirestore(realtimeAlertCount);
+                    };
+                    document.head.appendChild(script);
+                } else {
+                    fetchFirestoreAlerts(userId, realtimeAlertCount);
+                }
+            }
+
+            // Add this new function to fetch alerts from Firestore
+            function fetchFirestoreAlerts(userId, realtimeAlertCount) {
+                const firestore = firebase.firestore();
+                const statsCard = document.getElementById('user-stats');
+                
+                // Query for all user alerts
+                firestore.collection('emergencyRequests')
+                    .where('user', '==', userId)
+                    .get()
+                    .then(querySnapshot => {
+                        let totalAlerts = querySnapshot.size;
+                        let resolvedAlerts = 0;
+                        
+                        // Count resolved alerts
+                        querySnapshot.forEach(doc => {
+                            if (doc.data().resolved === true) {
+                                resolvedAlerts++;
+                            }
+                        });
+                        
+                        // Use the higher count between realtime DB and Firestore
+                        totalAlerts = Math.max(totalAlerts, realtimeAlertCount);
+                        
+                        // Update the UI with complete statistics
+                        statsCard.innerHTML = `
+                            <div class="flex items-center justify-center mb-6">
+                                <div class="bg-blue-100 p-3 rounded-full">
+                                    <i class="fas fa-bell text-blue-600 text-2xl"></i>
+                                </div>
+                                <h2 class="text-2xl font-semibold ml-3">Your Alerts</h2>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="bg-blue-50 px-6 py-4 rounded-xl text-center">
+                                    <p class="text-3xl font-bold text-blue-700">${totalAlerts}</p>
+                                    <p class="text-gray-700 mt-1">Alerts Sent</p>
+                                </div>
+                                <div class="bg-green-50 px-6 py-4 rounded-xl text-center">
+                                    <p class="text-3xl font-bold text-green-700">${resolvedAlerts}</p>
+                                    <p class="text-gray-700 mt-1">Resolved</p>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-6 text-center flex justify-center space-x-6">
+                                <a href="/alerts" class="inline-flex items-center text-blue-600 hover:text-blue-800">
+                                    <span>View Alerts</span>
+                                    <i class="fas fa-arrow-right ml-2"></i>
+                                </a>
+                            </div>
+                        `;
+                    })
+                    .catch(error => {
+                        console.error("Error fetching Firestore alerts:", error);
+                        displayStatsWithoutFirestore(realtimeAlertCount);
+                    });
+            }
+
+            // Add this function to display stats when Firestore is unavailable
+            function displayStatsWithoutFirestore(alertsCount) {
+                const statsCard = document.getElementById('user-stats');
+                
+                statsCard.innerHTML = `
+                    <div class="flex items-center justify-center mb-6">
+                        <div class="bg-blue-100 p-3 rounded-full">
+                            <i class="fas fa-bell text-blue-600 text-2xl"></i>
+                        </div>
+                        <h2 class="text-2xl font-semibold ml-3">Your Alerts</h2>
+                    </div>
+                    
+                    <div class="flex justify-center">
+                        <div class="bg-blue-50 px-12 py-6 rounded-xl text-center">
+                            <p class="text-3xl font-bold text-blue-700">${alertsCount}</p>
+                            <p class="text-gray-700 mt-1">Total Alerts Sent</p>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 text-center">
+                        <a href="/alerts" class="inline-flex items-center text-blue-600 hover:text-blue-800">
+                            <span>View All Alerts</span>
+                            <i class="fas fa-arrow-right ml-2"></i>
+                        </a>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
